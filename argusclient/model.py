@@ -20,21 +20,17 @@ class BaseEncodable(object):
             setattr(self, k, v)
 
     def to_dict(self):
-        D = dict((k, v) for k, v in iteritems(self.__dict__) if not k.startswith("_"))
-        return D
+        return {k: v for k, v in iteritems(self.__dict__) if not k.startswith("_")}
 
     @classmethod
     def from_dict(cls, D):
         for f in cls.id_fields:
             if isinstance(f, tuple):
-                if any(alias in D for alias in f):
-                    continue
-                else:
+                if all(alias not in D for alias in f):
                     return None
             elif f not in D:
                 return None
-        else:
-            return cls(**D)
+        return cls(**D)
 
     @property
     def argus_id(self):
@@ -65,9 +61,11 @@ class BaseEncodable(object):
         return hash(self.__dict__)
 
     def __eq__(self, other):
-        if not isinstance(other, type(self)):
-            return False
-        return self.__dict__ == other.__dict__
+        return (
+            self.__dict__ == other.__dict__
+            if isinstance(other, type(self))
+            else False
+        )
 
 
 class AddListResult(BaseEncodable):
@@ -86,12 +84,12 @@ class AddListResult(BaseEncodable):
     def error_count(self):
         """ Return error count from the result. """
         numEnd = self.Error.index(" ")
-        return int(self.Error[0:numEnd])
+        return int(self.Error[:numEnd])
 
     def success_count(self):
         """ Return success count from the result. """
         numEnd = self.Success.index(" ")
-        return int(self.Success[0:numEnd])
+        return int(self.Success[:numEnd])
 
 
 class User(BaseEncodable):
@@ -155,8 +153,18 @@ class Metric(BaseEncodable):
         ``scope:metric[{tagk=tagv,...}][:namespace]``
         """
         tags = hasattr(self, "tags") and self.tags or None
-        metricWithTags = tags and "%s{%s}" % (
-        self.metric, ",".join("%s=%s" % (k, v) for k, v in iteritems(self.tags))) or self.metric
+        metricWithTags = (
+            tags
+            and (
+                "%s{%s}"
+                % (
+                    self.metric,
+                    ",".join(f"{k}={v}" for k, v in iteritems(self.tags)),
+                )
+            )
+            or self.metric
+        )
+
         return ":".join(
             str(q) for q in (self.scope, metricWithTags, hasattr(self, "namespace") and self.namespace or None) if q)
 
@@ -202,8 +210,13 @@ class Annotation(BaseEncodable):
         ``scope:metric[{tagk=tagv,...}]:source``
         """
         tags = hasattr(self, "tags") and self.tags or None
-        metricWithTags = tags and "%s{%s}" % (self.metric, ",".join("%s=%s" % (k, v) for k, v in iteritems(self.tags))) \
-                              or self.metric
+        metricWithTags = (
+            tags
+            and "%s{%s}"
+            % (self.metric, ",".join(f"{k}={v}" for k, v in iteritems(self.tags)))
+            or self.metric
+        )
+
         return ":".join(str(q) for q in (self.scope, metricWithTags, self.source) if q)
 
 
@@ -268,7 +281,7 @@ class Permission(BaseEncodable):
     VALID_TYPES = frozenset(("user", "group"))
 
     def __init__(self, type, **kwargs):
-        assert type in Permission.VALID_TYPES, "Permission type %s is not valid" % type
+        assert type in Permission.VALID_TYPES, f"Permission type {type} is not valid"
         super(Permission, self).__init__(type=type, **kwargs)
 
 class Namespace(BaseEncodable):
@@ -352,7 +365,8 @@ class Alert(BaseEncodable):
 
     @triggers.setter
     def triggers(self, value):
-        if not isinstance(value, list): raise ValueError("value should be of list type, but is: %s" % type(value))
+        if not isinstance(value, list):
+            raise ValueError(f"value should be of list type, but is: {type(value)}")
         # This is a special case allowed only while adding new alerts, so ensure that argus_id of self and the objects is None.
         # TODO Check for item type also
         self._triggers = value
@@ -378,7 +392,8 @@ class Alert(BaseEncodable):
 
     @notifications.setter
     def notifications(self, value):
-        if not isinstance(value, list): raise ValueError("value should be of list type, but is: %s" % type(value))
+        if not isinstance(value, list):
+            raise ValueError(f"value should be of list type, but is: {type(value)}")
         # This is a special case allowed only while adding new alerts, so ensure that argus_id of self and the objects is None.
         # TODO Check for item type also
         self._notifications = value
@@ -427,7 +442,7 @@ class Trigger(BaseEncodable):
         (GREATER_THAN, GREATER_THAN_OR_EQ, LESS_THAN, LESS_THAN_OR_EQ, EQUAL, NOT_EQUAL, BETWEEN, NOT_BETWEEN, NO_DATA))
 
     def __init__(self, name, type, threshold, inertia, **kwargs):
-        assert type in Trigger.VALID_TYPES, "type is not valid: %s" % type
+        assert type in Trigger.VALID_TYPES, f"type is not valid: {type}"
         super(Trigger, self).__init__(name=name, type=type, threshold=threshold, inertia=inertia, **kwargs)
 
 
@@ -478,7 +493,10 @@ class Notification(BaseEncodable):
 
     def __init__(self, name, notifierName=None, metricsToAnnotate=None, **kwargs):
         notifierName = notifierName or kwargs.get('notifier')
-        assert notifierName in Notification.VALID_NOTIFIERS, "notifierName is not valid: %s" % notifierName
+        assert (
+            notifierName in Notification.VALID_NOTIFIERS
+        ), f"notifierName is not valid: {notifierName}"
+
         super(Notification, self).__init__(name=name, notifierName=notifierName,
                                            metricsToAnnotate=metricsToAnnotate or [],
                                            **kwargs)
@@ -534,10 +552,7 @@ class JsonDecoder(json.JSONDecoder):
     def from_json(self, jsonObj):
         if not jsonObj or not isinstance(jsonObj, dict):
             return jsonObj
-        for cls in (Metric, Dashboard, AddListResult, User, Namespace, Annotation,
-                    Alert, Trigger, Notification, Permission, Derivative):
-            obj = cls.from_dict(jsonObj)
-            if obj:
+        for cls in (Metric, Dashboard, AddListResult, User, Namespace, Annotation, Alert, Trigger, Notification, Permission, Derivative):
+            if obj := cls.from_dict(jsonObj):
                 return obj
-        else:
-            return jsonObj
+        return jsonObj

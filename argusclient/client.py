@@ -54,9 +54,9 @@ class ArgusObjectNotFoundException(ArgusException):
 class BaseQuery(object):
     def __init__(self, baseExpr, *tailParams, **kwargs):
         self.baseExpr = baseExpr
-        self.stTimeSpec = kwargs.get("stTimeSpec", None)
-        self.enTimeSpec = kwargs.get("enTimeSpec", None)
-        self.tailParams = tuple([t for t in tailParams if t])  # Filter None's.
+        self.stTimeSpec = kwargs.get("stTimeSpec")
+        self.enTimeSpec = kwargs.get("enTimeSpec")
+        self.tailParams = tuple(t for t in tailParams if t)
         assert self.stTimeSpec or self.enTimeSpec, "One of start or end time specifications should be non-empty"
 
     def __str__(self):
@@ -65,8 +65,12 @@ class BaseQuery(object):
         ``-1d:-0d:scope:metric[{tagk=tagv,...}]:downsample[:aggregator][:namespace]``. An annotation query has the format
         ``-1d:-0d:scope:metric[{tagk=tagv,...}]:source``.
         """
-        query = ":".join(str(q) for q in (self.stTimeSpec, self.enTimeSpec, self.baseExpr) + self.tailParams if q)
-        return query
+        return ":".join(
+            str(q)
+            for q in (self.stTimeSpec, self.enTimeSpec, self.baseExpr)
+            + self.tailParams
+            if q
+        )
 
     def getQueryParams(self):
         return dict(expression=str(self))
@@ -117,7 +121,8 @@ class BaseCollectionServiceClient(object):
         Returns the list of data matching the given query.
         """
         if not query: raise ValueError("need a value for query parameter")
-        if not isinstance(query, self.query_type): raise TypeError("query needs to be of type: %s" % self.query_type)
+        if not isinstance(query, self.query_type):
+            raise TypeError(f"query needs to be of type: {self.query_type}")
         return self.argus._request("get", self.query_path, params=query.getQueryParams())
 
     def add(self, data):
@@ -128,7 +133,7 @@ class BaseCollectionServiceClient(object):
         """
         if not data: raise ValueError("need a value for data parameter")
         if not isinstance(data, list) or not isinstance(data[0], self.obj_type):
-            raise TypeError("data should be a list of %s objects" % self.obj_type)
+            raise TypeError(f"data should be a list of {self.obj_type} objects")
         return self.argus._request("post", self.coll_path, dataObj=data)
 
 
@@ -169,15 +174,21 @@ class BaseModelServiceClient(object):
 
     def _init_all(self, coll=None):
         if not self.get_all_req_opts.get(REQ_PATH):
-            raise TypeError("Unsupported operation on: %s" % type(self))
+            raise TypeError(f"Unsupported operation on: {type(self)}")
         if not self._retrieved_all:
-            self._coll = dict((obj.argus_id, self._fill(obj))
-                              for obj in (coll or self.argus._request(self.get_all_req_opts.get(REQ_METHOD, "get"),
-                                                                      self.get_all_req_opts.get(REQ_PATH, None),
-                                                                      params=self.get_all_req_opts.get(REQ_PARAMS,
-                                                                                                       None),
-                                                                      dataObj=self.get_all_req_opts.get(REQ_BODY,
-                                                                                                        None))))
+            self._coll = {
+                obj.argus_id: self._fill(obj)
+                for obj in (
+                    coll
+                    or self.argus._request(
+                        self.get_all_req_opts.get(REQ_METHOD, "get"),
+                        self.get_all_req_opts.get(REQ_PATH, None),
+                        params=self.get_all_req_opts.get(REQ_PARAMS, None),
+                        dataObj=self.get_all_req_opts.get(REQ_BODY, None),
+                    )
+                )
+            }
+
             self._retrieved_all = True
 
     def _fill(self, obj):
@@ -193,10 +204,10 @@ class BaseModelServiceClient(object):
         return self._coll[id]
 
     def update(self, key, value):
-        raise TypeError("Unsupported operation on: %s" % type(self))
+        raise TypeError(f"Unsupported operation on: {type(self)}")
 
     def delete(self, key):
-        raise TypeError("Unsupported operation on: %s" % type(self))
+        raise TypeError(f"Unsupported operation on: {type(self)}")
 
     def items(self):
         """
@@ -271,13 +282,13 @@ class UsersServiceClient(BaseModelServiceClient):
         if isinstance(key, int) or key.isdigit():
             id = int(key)
             if id not in self._coll:
-                u = self._fill(self.argus._request("get", "users/id/%s" % id))
+                u = self._fill(self.argus._request("get", f"users/id/{id}"))
                 self._coll[id] = u
                 self._coll_by_name[u.userName] = u
             return self._coll[id]
         else:
             if key not in self._coll_by_name:
-                u = self._fill(self.argus._request("get", "users/username/%s" % key))
+                u = self._fill(self.argus._request("get", f"users/username/{key}"))
                 self._coll_by_name[key] = u
                 self._coll[u.id] = u
             return self._coll_by_name[key]
@@ -304,7 +315,10 @@ class NamespacesServiceClient(BaseModelServiceClient):
         if not namespace.argus_id: raise ValueError("Namespace needs an id to update")
         if id != namespace.argus_id:
             raise ValueError("Namespace id: %s doesn't match the id: %s that you are updating" % (namespace.id, id))
-        self._coll[id] = self.argus._request("put", "namespace/%s" % id, dataObj=namespace)
+        self._coll[id] = self.argus._request(
+            "put", f"namespace/{id}", dataObj=namespace
+        )
+
         return self._coll[id]
 
     def add(self, namespace):
@@ -313,7 +327,8 @@ class NamespacesServiceClient(BaseModelServiceClient):
 
         :return: the new :class:`argusclient.model.Namespace` with all fields populated.
         """
-        if not isinstance(namespace, Namespace): raise TypeError("Need a Namespace object, got: %s" % type(namespace))
+        if not isinstance(namespace, Namespace):
+            raise TypeError(f"Need a Namespace object, got: {type(namespace)}")
         if namespace.argus_id: raise ValueError("A new namespace can't have an id")
         ns = self._fill(self.argus._request("post", "namespace", dataObj=namespace))
         self._coll[ns.id] = ns
@@ -326,7 +341,10 @@ class NamespacesServiceClient(BaseModelServiceClient):
         :return: the updated :class:`argusclient.model.Namespace` with all fields populated.
         """
         if not namespaceid: raise ValueError("Need to specify a namespaceid")
-        self._coll[namespaceid] = self.argus._request("put", "namespace/%s/users" % namespaceid, dataObj=users)
+        self._coll[namespaceid] = self.argus._request(
+            "put", f"namespace/{namespaceid}/users", dataObj=users
+        )
+
         return self._coll[namespaceid]
 
 
@@ -354,7 +372,8 @@ class BaseUpdatableModelServiceClient(BaseModelServiceClient):
         """
         if not id: raise ValueError("Need to specify an id to update item")
         id = int(id)
-        if not isinstance(obj, self.objType): raise TypeError("Need an object of type: %s" % self.objType)
+        if not isinstance(obj, self.objType):
+            raise TypeError(f"Need an object of type: {self.objType}")
         if not obj.argus_id: raise ValueError("Object needs an id to update")
         # Ensure that user doesn't accidentally copy another item.
         if id != obj.argus_id:
@@ -396,7 +415,8 @@ class DashboardsServiceClient(BaseUpdatableModelServiceClient):
 
         :return: the :class:`argusclient.model.Dashboard` object with all fields populated.
         """
-        if not isinstance(dashboard, Dashboard): raise TypeError("Need a Dashboard object, got: %s" % type(dashboard))
+        if not isinstance(dashboard, Dashboard):
+            raise TypeError(f"Need a Dashboard object, got: {type(dashboard)}")
         if dashboard.argus_id: raise ValueError("A new dashboard can't have an id")
         db = self._fill(self.argus._request("post", "dashboards", dataObj=dashboard))
         self._coll[db.id] = db
@@ -410,13 +430,20 @@ class DashboardsServiceClient(BaseUpdatableModelServiceClient):
         """
         assert dashboardName, "Expected a dashboard name"
         assert ownerName, "Expected a owner name"
-        dashboards = self.argus._request("get", "dashboards",
-                                         params=dict(dashboardName=dashboardName, owner=ownerName, shared=shared))
-        if not dashboards:
-            return None
-        else:
-            assert len(dashboards) == 1, "Expected a single dashboard as a result, but got: %s" % len(dashboards)
+        if dashboards := self.argus._request(
+            "get",
+            "dashboards",
+            params=dict(
+                dashboardName=dashboardName, owner=ownerName, shared=shared
+            ),
+        ):
+            assert (
+                len(dashboards) == 1
+            ), f"Expected a single dashboard as a result, but got: {len(dashboards)}"
+
             return dashboards[0]
+        else:
+            return None
 
     def get_user_dashboards(self, ownerName=None, shared=True, limit=None, version=None):
         """
@@ -450,7 +477,7 @@ class PermissionsServiceClient(BaseUpdatableModelServiceClient):
 
     def _init_all(self, coll=None):
         if not self.get_all_req_opts.get(REQ_PATH):
-            raise TypeError("Unsupported operation on: %s" % type(self))
+            raise TypeError(f"Unsupported operation on: {type(self)}")
         if not self._retrieved_all:
             resp = convert(self.argus._request(self.get_all_req_opts.get(REQ_METHOD, "get"),
                                                self.get_all_req_opts.get(REQ_PATH, None),
@@ -466,15 +493,14 @@ class PermissionsServiceClient(BaseUpdatableModelServiceClient):
 
         :return: a dict of entity id's mapped to a list of :class:`argusclient.model.Permission` objects
         """
-        entityIds = []
-        # Filter out entity id's for which the permissions have already been queried
-        for entity_id in entity_ids:
-            if entity_id not in self._coll:
-                entityIds.append(entity_id)
-
-        if entityIds:
-            response = convert(self.argus._request("post", "permission/entityIds", dataObj=entityIds))
-            if response:
+        if entityIds := [
+            entity_id for entity_id in entity_ids if entity_id not in self._coll
+        ]:
+            if response := convert(
+                self.argus._request(
+                    "post", "permission/entityIds", dataObj=entityIds
+                )
+            ):
                 for id, perms in iteritems(response):
                     self._coll[id] = perms
         return self._coll
@@ -485,9 +511,12 @@ class PermissionsServiceClient(BaseUpdatableModelServiceClient):
         :return: the :class:`argusclient.model.Permission` object with the entityId field set.
         """
         if not isinstance(permission, Permission):
-            raise TypeError("Need a Permission object, got: %s" % type(permission))
+            raise TypeError(f"Need a Permission object, got: {type(permission)}")
         if permission.argus_id: raise ValueError("A new permission can't have an entity id associated with it")
-        updated_permission = self.argus._request("post", "permission/%s" % entity_id, dataObj=permission)
+        updated_permission = self.argus._request(
+            "post", f"permission/{entity_id}", dataObj=permission
+        )
+
 
         self._coll[updated_permission.entityId] = updated_permission
 
@@ -498,10 +527,13 @@ class PermissionsServiceClient(BaseUpdatableModelServiceClient):
 
     def delete(self, entity_id, permission):
         if not isinstance(permission, Permission):
-            raise TypeError("Need a Permission object, got: %s" % type(permission))
+            raise TypeError(f"Need a Permission object, got: {type(permission)}")
         if permission.type == "user" and permission.permissionIds == []:
             raise ValueError("Deleting a user permission requires the permission that needs to be revoked")
-        updated_permission = self.argus._request("delete", "permission/%s" % entity_id, dataObj=permission)
+        updated_permission = self.argus._request(
+            "delete", f"permission/{entity_id}", dataObj=permission
+        )
+
         if updated_permission.entityId in self._coll:
             del self._coll[updated_permission.entityId]
 
@@ -561,7 +593,8 @@ class AlertsServiceClient(BaseUpdatableModelServiceClient):
 
         :return: the :class:`argusclient.model.Alert` object with all fields populated.
         """
-        if not isinstance(alert, Alert): raise TypeError("Need a Alert object, got: %s" % type(alert))
+        if not isinstance(alert, Alert):
+            raise TypeError(f"Need a Alert object, got: {type(alert)}")
         if alert.argus_id: raise ValueError("A new alert can't have an id")
         alertobj = self._fill(self.argus._request("post", "alerts", dataObj=alert))
         self._coll[alertobj.id] = alertobj
@@ -584,7 +617,9 @@ class AlertsServiceClient(BaseUpdatableModelServiceClient):
         if not alertid: raise ValueError("Need to specify an alertid")
         if not notificationid: raise ValueError("Need to specify a notificationid")
         # TODO: Update self._coll
-        return self.argus._request("get", "alerts/%s/notifications/%s/triggers" % (alertid, notificationid))
+        return self.argus._request(
+            "get", f"alerts/{alertid}/notifications/{notificationid}/triggers"
+        )
 
     def get_notification_trigger(self, alertid, notificationid, triggerid):
         """
@@ -596,8 +631,10 @@ class AlertsServiceClient(BaseUpdatableModelServiceClient):
         if not notificationid: raise ValueError("Need to specify a notificationid")
         if not triggerid: raise ValueError("Need to specify a triggerid")
         # TODO: Update self._coll
-        return self.argus._request("get",
-                                   "alerts/%s/notifications/%s/triggers/%s" % (alertid, notificationid, triggerid))
+        return self.argus._request(
+            "get",
+            f"alerts/{alertid}/notifications/{notificationid}/triggers/{triggerid}",
+        )
 
     def add_notification_trigger(self, alertid, notificationid, triggerid):
         """
@@ -609,8 +646,10 @@ class AlertsServiceClient(BaseUpdatableModelServiceClient):
         if not notificationid: raise ValueError("Need to specify a notificationid")
         if not triggerid: raise ValueError("Need to specify a triggerid")
         # TODO: Update self._coll
-        return self.argus._request("post",
-                                   "alerts/%s/notifications/%s/triggers/%s" % (alertid, notificationid, triggerid))
+        return self.argus._request(
+            "post",
+            f"alerts/{alertid}/notifications/{notificationid}/triggers/{triggerid}",
+        )
 
     def delete_notification_trigger(self, alertid, notificationid, triggerid):
         """
@@ -620,7 +659,10 @@ class AlertsServiceClient(BaseUpdatableModelServiceClient):
         if not notificationid: raise ValueError("Need to specify a notificationid")
         if not triggerid: raise ValueError("Need to specify a triggerid")
         # TODO: Update self._coll
-        self.argus._request("delete", "alerts/%s/notifications/%s/triggers/%s" % (alertid, notificationid, triggerid))
+        self.argus._request(
+            "delete",
+            f"alerts/{alertid}/notifications/{notificationid}/triggers/{triggerid}",
+        )
 
     def get_user_alert(self, ownerName, alertName, shared=True):
         """
@@ -630,13 +672,18 @@ class AlertsServiceClient(BaseUpdatableModelServiceClient):
         """
         assert alertName, "Expected an alert name"
         assert ownerName, "Expected a owner name"
-        alerts = self.argus._request("get", "alerts/meta",
-                                     params=dict(alertname=alertName, ownername=ownerName, shared=shared))
-        if not alerts:
-            return None
-        else:
-            assert len(alerts) == 1, "Expected a single alert as a result, but got: %s" % [a.name for a in alerts]
+        if alerts := self.argus._request(
+            "get",
+            "alerts/meta",
+            params=dict(alertname=alertName, ownername=ownerName, shared=shared),
+        ):
+            assert (
+                len(alerts) == 1
+            ), f"Expected a single alert as a result, but got: {[a.name for a in alerts]}"
+
             return alerts[0]
+        else:
+            return None
 
     def get_alerts_allinfo(self, ownerName=None, alertNameContains=None, shared=False, limit=None):
         """
@@ -663,9 +710,10 @@ class AlertsServiceClient(BaseUpdatableModelServiceClient):
         """
 
         if not comp_alert_id: raise ValueError("Need to specify comp_alert_id")
-        if not isinstance(comp_alert_id, int): raise TypeError("Need an Alert ID, got: %s" % type(comp_alert_id))
+        if not isinstance(comp_alert_id, int):
+            raise TypeError(f"Need an Alert ID, got: {type(comp_alert_id)}")
 
-        uri_path = "alerts/{}/children".format(comp_alert_id)
+        uri_path = f"alerts/{comp_alert_id}/children"
         child_alerts = self.argus._request("get", uri_path)
         child_alerts = [self._fill(child_alert) for child_alert in child_alerts]
         return child_alerts
@@ -680,9 +728,10 @@ class AlertsServiceClient(BaseUpdatableModelServiceClient):
         """
 
         if not comp_alert_id: raise ValueError("Need to specify comp_alert_id")
-        if not isinstance(comp_alert_id, int): raise TypeError("Need an Alert ID, got: %s" % type(comp_alert_id))
+        if not isinstance(comp_alert_id, int):
+            raise TypeError(f"Need an Alert ID, got: {type(comp_alert_id)}")
 
-        uri_path = "alerts/{}/children/info".format(comp_alert_id)
+        uri_path = f"alerts/{comp_alert_id}/children/info"
         return self.argus._request("get", uri_path)
 
     def add_child_alert_to_composite_alert(self, comp_alert_id, alert):
@@ -699,10 +748,12 @@ class AlertsServiceClient(BaseUpdatableModelServiceClient):
         """
         if not comp_alert_id: raise ValueError("Need to specify a composite alert id")
         if not alert: raise ValueError("Need to specify an Alert object")
-        if not isinstance(comp_alert_id, int): raise TypeError("Need an Alert ID, got: %s" % type(comp_alert_id))
-        if not isinstance(alert, Alert): raise TypeError("Need an Alert object, got: %s" % type(alert))
+        if not isinstance(comp_alert_id, int):
+            raise TypeError(f"Need an Alert ID, got: {type(comp_alert_id)}")
+        if not isinstance(alert, Alert):
+            raise TypeError(f"Need an Alert object, got: {type(alert)}")
 
-        uri_path = "alerts/{}/children".format(comp_alert_id)
+        uri_path = f"alerts/{comp_alert_id}/children"
         alert_obj = self._fill(self.argus._request("post", uri_path, dataObj=alert))
         self._coll[alert_obj.id] = alert_obj
         return alert_obj
@@ -720,10 +771,11 @@ class AlertsServiceClient(BaseUpdatableModelServiceClient):
         if not comp_alert_id: raise ValueError("Need to specify a composite alert id")
         if not child_alert_id: raise ValueError("Need to specify a child alert id")
         if not isinstance(comp_alert_id, int):
-            raise TypeError("Need a composite Alert ID, got: %s" % type(comp_alert_id))
-        if not isinstance(child_alert_id, int): raise TypeError("Need an Alert ID, got: %s" % type(child_alert_id))
+            raise TypeError(f"Need a composite Alert ID, got: {type(comp_alert_id)}")
+        if not isinstance(child_alert_id, int):
+            raise TypeError(f"Need an Alert ID, got: {type(child_alert_id)}")
 
-        uri_path = "alerts/{}/children/{}".format(comp_alert_id, child_alert_id)
+        uri_path = f"alerts/{comp_alert_id}/children/{child_alert_id}"
         if child_alert_id in self._coll:
             del self._coll[child_alert_id]
         return self.argus._request("delete", uri_path)
@@ -739,8 +791,13 @@ class AlertTriggersServiceClient(BaseUpdatableModelServiceClient):
     def __init__(self, argus, alert):
         assert alert, "Expected an alert at this point"
         assert alert.id, "Alert expected to have an id at this point"
-        super(AlertTriggersServiceClient, self).__init__(Trigger, argus, id_path="alerts/%s/triggers/%%s" % alert.id,
-                                                         get_all_req_opts={REQ_PATH: "alerts/%s/triggers" % alert.id})
+        super(AlertTriggersServiceClient, self).__init__(
+            Trigger,
+            argus,
+            id_path="alerts/%s/triggers/%%s" % alert.id,
+            get_all_req_opts={REQ_PATH: f"alerts/{alert.id}/triggers"},
+        )
+
         self.alert = alert
         if alert.triggers:
             self._init_all(alert.triggers)
@@ -751,16 +808,21 @@ class AlertTriggersServiceClient(BaseUpdatableModelServiceClient):
 
         :return: the added :class:`argusclient.model.Trigger` with all fields populated.
         """
-        if not isinstance(trigger, Trigger): raise TypeError("Need a Trigger object, got: %s" % type(trigger))
+        if not isinstance(trigger, Trigger):
+            raise TypeError(f"Need a Trigger object, got: {type(trigger)}")
         if trigger.argus_id: raise ValueError("A new Trigger can't have an id")
-        triggers = self.argus._request("post", "alerts/%s/triggers" % self.alert.id, dataObj=trigger)
+        triggers = self.argus._request(
+            "post", f"alerts/{self.alert.id}/triggers", dataObj=trigger
+        )
+
         self._init_all(triggers)
         self.alert.triggerIds = [t.argus_id for t in triggers]
         try:
             return next(t for t in triggers if t.name == trigger.name)
         except StopIteration:
             raise ArgusException(
-                "This is unexpected... trigger: %s not found after successfully adding it" % trigger.name)
+                f"This is unexpected... trigger: {trigger.name} not found after successfully adding it"
+            )
 
     def delete(self, id):
         super(AlertTriggersServiceClient, self).delete(id)
@@ -777,10 +839,13 @@ class AlertNotificationsServiceClient(BaseUpdatableModelServiceClient):
     def __init__(self, argus, alert):
         assert alert, "Expected an alert at this point"
         assert alert.id, "Alert expected to have an id at this point"
-        super(AlertNotificationsServiceClient, self).__init__(Notification, argus,
-                                                              id_path="alerts/%s/notifications/%%s" % alert.id,
-                                                              get_all_req_opts={
-                                                                  REQ_PATH: "alerts/%s/notifications" % alert.id})
+        super(AlertNotificationsServiceClient, self).__init__(
+            Notification,
+            argus,
+            id_path="alerts/%s/notifications/%%s" % alert.id,
+            get_all_req_opts={REQ_PATH: f"alerts/{alert.id}/notifications"},
+        )
+
         self.alert = alert
         if alert.notifications:
             self._init_all(alert.notifications)
@@ -792,16 +857,20 @@ class AlertNotificationsServiceClient(BaseUpdatableModelServiceClient):
         :return: the added :class:`argusclient.model.Notification` with all fields populated.
         """
         if not isinstance(notification, Notification):
-            raise TypeError("Need a Notification object, got: %s" % type(notification))
+            raise TypeError(f"Need a Notification object, got: {type(notification)}")
         if notification.argus_id: raise ValueError("A new Notification can't have an id")
-        notifications = self.argus._request("post", "alerts/%s/notifications" % self.alert.id, dataObj=notification)
+        notifications = self.argus._request(
+            "post", f"alerts/{self.alert.id}/notifications", dataObj=notification
+        )
+
         self._init_all(notifications)
         self.alert.notificationIds = [n.argus_id for n in notifications]
         try:
             return next(n for n in notifications if n.name == notification.name)
         except StopIteration:
             raise ArgusException(
-                "This is unexpected... notification: %s not found after successfully adding it" % notification.name)
+                f"This is unexpected... notification: {notification.name} not found after successfully adding it"
+            )
 
     def delete(self, id):
         super(AlertNotificationsServiceClient, self).delete(id)
@@ -829,7 +898,8 @@ class DerivativeServiceClient(BaseUpdatableModelServiceClient):
         Adds the derivative
         :return: the :class:`argusclient.model.Derivative` object with all fields populated.
         """
-        if not isinstance(derivative, Derivative): raise TypeError("Need a Derivative object, got: %s" % type(derivative))
+        if not isinstance(derivative, Derivative):
+            raise TypeError(f"Need a Derivative object, got: {type(derivative)}")
         if derivative.argus_id: raise ValueError("A new derivative can't have an id")
         derivativeobj = self._fill(self.argus._request("post", "derivatives", dataObj=derivative))
         self._coll[derivativeobj.id] = derivativeobj
@@ -1061,13 +1131,12 @@ class ArgusServiceClient(object):
         # Argus seems to recognized "Accept" header for "application/json" and "application/ms-excel", but the former is the default.
         headers = {"Content-Type": "application/json"}
         if self.accessToken:
-            headers["Authorization"] = "Bearer " + self.accessToken
+            headers["Authorization"] = f"Bearer {self.accessToken}"
 
         resp = req_method(url, data=data, params=params,
                           headers=headers,
                           timeout=self.timeout)
-        res = check_success(resp, decCls)
-        return res
+        return check_success(resp, decCls)
 
 
 def check_success(resp, decCls):
@@ -1080,9 +1149,15 @@ def check_success(resp, decCls):
             raise ArgusException(resp.text)
         return res
     elif resp.status_code == httplib.NOT_FOUND:
-        raise ArgusObjectNotFoundException("Object not found at endpoint: {} message: {}".format(resp.url, resp.text))
+        raise ArgusObjectNotFoundException(
+            f"Object not found at endpoint: {resp.url} message: {resp.text}"
+        )
+
     elif resp.status_code == httplib.UNAUTHORIZED:
-        raise ArgusAuthException("Failed to authenticate at endpoint: %s message: %s" % (resp.url, resp.text))
+        raise ArgusAuthException(
+            f"Failed to authenticate at endpoint: {resp.url} message: {resp.text}"
+        )
+
     else:
         # TODO handle this differently, as this is typically a more severe exception (see W-2830904)
         raise ArgusException(resp.text)

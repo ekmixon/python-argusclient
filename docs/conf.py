@@ -249,13 +249,13 @@ def skip(app, what, name, obj, skip, options):
     if not obj.__doc__:
         # Skip undocumented members.
         return True
-    if name in ("__init__", "__str__", "_request"):
-        # Only document the ones we define.
-        if inspect.getmodule(obj) and inspect.getmodule(obj).__package__ == "argusclient":
-            return False
-    if name in ("id_fields", "owner_id_field"):
-        return True
-    return skip
+    if (
+        name in ("__init__", "__str__", "_request")
+        and inspect.getmodule(obj)
+        and inspect.getmodule(obj).__package__ == "argusclient"
+    ):
+        return False
+    return True if name in ("id_fields", "owner_id_field") else skip
 
 def setup(app):
     app.connect("autodoc-skip-member", skip)

@@ -29,7 +29,7 @@ class ObjTest(unittest.TestCase):
         self.assertEqual(m.datapoints, datapoints)
 
         m.datapoints = {}
-        m.datapoints.update(datapoints)
+        m.datapoints |= datapoints
         self.assertEqual(m.datapoints, datapoints)
 
         m.datapoints = datapoints
@@ -40,7 +40,7 @@ class ObjTest(unittest.TestCase):
         self.assertEqual(m.tags, tags)
 
         m.tags = {}
-        m.tags.update(tags)
+        m.tags |= tags
         self.assertEqual(m.tags, tags)
 
         m.tags = tags
@@ -48,17 +48,19 @@ class ObjTest(unittest.TestCase):
 
         m = Metric(scope, metric, datapoints=datapoints)
         self.assertEqual(m.datapoints, datapoints)
-        self.assertEqual(str(m), scope+":"+metric)
+        self.assertEqual(str(m), f"{scope}:{metric}")
 
         m = Metric(scope, metric, namespace=namespace, displayName=displayName, unitType=unitType, id=testId)
         self.assertEqual(m.namespace, namespace)
         self.assertEqual(m.displayName, displayName)
         self.assertEqual(m.unitType, unitType)
         self.assertEqual(m.id, testId)
-        self.assertEqual(str(m), scope + ":" + metric + ":" + namespace)
+        self.assertEqual(str(m), f"{scope}:{metric}:{namespace}")
 
         m.tags = tags
-        self.assertEqual(str(m), scope + ":" + metric + "{test.tag=test.value}" + ":" + namespace)
+        self.assertEqual(
+            str(m), f"{scope}:{metric}" + "{test.tag=test.value}" + ":" + namespace
+        )
 
     def testCreateDashboard(self):
         d = Dashboard(dashboardName, content, shared=False, id=testId)
@@ -97,15 +99,18 @@ class ObjTest(unittest.TestCase):
         self.assertEqual(a.id, testId)
         self.assertEqual(a.timestamp, timestamp)
         self.assertEqual(a.type, testType)
-        self.assertEqual(str(a), scope + ":" + metric + ":"+source)
+        self.assertEqual(str(a), f"{scope}:{metric}:{source}")
 
         for k, v in list(tags.items()):
             a.tags[k] = v
         self.assertEqual(a.tags, tags)
-        self.assertEqual(str(a), scope + ":" + metric + "{test.tag=test.value}:" + source)
+        self.assertEqual(
+            str(a), f"{scope}:{metric}" + "{test.tag=test.value}:" + source
+        )
+
 
         a.tags = {}
-        a.tags.update(tags)
+        a.tags |= tags
         self.assertEqual(a.tags, tags)
 
         a.tags = tags
@@ -116,7 +121,7 @@ class ObjTest(unittest.TestCase):
         self.assertEqual(a.fields, fields)
 
         a.fields = {}
-        a.fields.update(fields)
+        a.fields |= fields
         self.assertEqual(a.fields, fields)
 
         a.fields = fields
@@ -196,10 +201,14 @@ class ObjTest(unittest.TestCase):
 
 class TestEncoding(unittest.TestCase):
     def setUp(self):
-        self.objClasses = []
-        for v in list(argusclient.__dict__.values()):
-            if v != BaseEncodable and isinstance(v, type) and issubclass(v, BaseEncodable):
-                self.objClasses.append(v)
+        self.objClasses = [
+            v
+            for v in list(argusclient.__dict__.values())
+            if v != BaseEncodable
+            and isinstance(v, type)
+            and issubclass(v, BaseEncodable)
+        ]
+
         if not self.objClasses:
             raise Exception("Found no classes of type BaseEncodable")
 
@@ -279,18 +288,18 @@ class TestEncoding(unittest.TestCase):
         if hasattr(objClass, "owner_id_field"):
             self.assertEqual(o.owner_id, D[getattr(objClass, "owner_id_field")])
         for c in self.objClasses:
-            if c == objClass:
-                pass
-            else:
-                self.assertEqual(c.from_dict(D), None, "Expected None for class: %s" % c)
+            if c != objClass:
+                self.assertEqual(c.from_dict(D), None, f"Expected None for class: {c}")
         jsonStr = json.dumps(D)
         o = json.loads(jsonStr, cls=JsonDecoder)
         self._assertType(o, objClass)
         self.assertEqual(json.loads(jsonStr), D)
 
     def _assertType(self, obj, objClass):
-        self.assertTrue(isinstance(obj, objClass),
-                "Encoded obj of type: %s is not of expected type: %s" % (type(obj), objClass))
+        self.assertTrue(
+            isinstance(obj, objClass),
+            f"Encoded obj of type: {type(obj)} is not of expected type: {objClass}",
+        )
 
 class TestW_2816614(unittest.TestCase):
     def test_namespace_qualifier(self):

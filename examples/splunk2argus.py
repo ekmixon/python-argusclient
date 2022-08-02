@@ -156,16 +156,14 @@ def get_splunk_metrics(opts):
         if opts.verbose:
             logging.info("Still waiting for job to be ready..")
         time.sleep(1)
-    else:
-        if not opts.quiet:
-            logging.info("Job is ready, waiting for completion..")
+    if not opts.quiet:
+        logging.info("Job is ready, waiting for completion..")
     while not job.is_done():
         if opts.verbose:
             logging.info("Still waiting for job to be completed..")
         time.sleep(2)
-    else:
-        if not opts.quiet:
-            logging.info("Job is done, collecting results..")
+    if not opts.quiet:
+        logging.info("Job is done, collecting results..")
 
     # Assign job results, in CSV format, all records, to results
     results = job.results(output_mode="csv", count=0)
@@ -239,13 +237,8 @@ def get_splunk_metrics(opts):
                 return None
 
             # cast str to number
-            if "." in val:
-                val = float(val)
-            else:
-                val = int(val)
-
-            # add a Metric object to m_dict if it doesn't already exist [namespace]:scope:metric{tags}
-            if not m_key in m_dict:
+            val = float(val) if "." in val else int(val)
+            if m_key not in m_dict:
                 if opts.argusnamespace:
                     m_dict[m_key] = Metric(scope=rowScope, metric=col, tags=tag_dict, namespace=opts.argusnamespace)
                 else:
@@ -262,9 +255,7 @@ def get_splunk_metrics(opts):
     job.cancel()
     return list(itervalues(m_dict))
 
-metrics = get_splunk_metrics(opts)
-
-if metrics:
+if metrics := get_splunk_metrics(opts):
     argus = ArgusServiceClient(opts.user,
                                opts.password,
                                endpoint=opts.argusws)

@@ -108,16 +108,14 @@ def get_splunk_metrics(opts):
         if opts.verbose:
             logging.info("Still waiting for job to be ready..")
         time.sleep(1)
-    else:
-        if not opts.quite:
-            logging.info("Job is ready, waiting for completion..")
+    if not opts.quite:
+        logging.info("Job is ready, waiting for completion..")
     while not job.is_done():
         if opts.verbose:
             logging.info("Still waiting for job to be completed..")
         time.sleep(2)
-    else:
-        if not opts.quite:
-            logging.info("Job is done, collecting results..")
+    if not opts.quite:
+        logging.info("Job is done, collecting results..")
 
     results = job.results(output_mode="csv", count=0)
     csvr = csv.reader(results)
@@ -144,15 +142,18 @@ def get_splunk_metrics(opts):
             if col in ("_time", "host") or not row[col]:
                 continue
             m_key = (host, col)
-            if not m_key in m_dict:
-                m_dict[m_key] = Metric(opts.scope, patternTagVal+"."+col, tags=dict(host=host, patternStr=patternTagVal), namespace=opts.namespace)
+            if m_key not in m_dict:
+                m_dict[m_key] = Metric(
+                    opts.scope,
+                    f"{patternTagVal}.{col}",
+                    tags=dict(host=host, patternStr=patternTagVal),
+                    namespace=opts.namespace,
+                )
+
             m = m_dict[m_key]
             ts = row["_time"] and to_gmt_epoch(row["_time"]) or runts
             val = row[col]
-            if "." in val:
-                val = float(val)
-            else:
-                val = int(val)
+            val = float(val) if "." in val else int(val)
             if logging.root.isEnabledFor(logging.DEBUG):
                 logging.debug("Adding %s at timestamp: %s for metric: %s", val, ts, m.desc())
             m.datapoints[ts] = val
@@ -162,8 +163,7 @@ def get_splunk_metrics(opts):
     job.cancel()
     return list(itervalues(m_dict))
 
-metrics = get_splunk_metrics(opts)
-if metrics:
+if metrics := get_splunk_metrics(opts):
     argus = ArgusServiceClient(opts.user,
                                opts.password,
                                endpoint=opts.argusws)

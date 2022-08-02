@@ -248,7 +248,7 @@ class TestLogin(TestServiceBase):
 class TestMetrics(TestServiceBase):
     def testAddInvalidMetrics(self):
         self.assertRaises(TypeError, lambda: self.argus.metrics.add(Metric.from_dict(metric_D)))
-        self.assertRaises(TypeError, lambda: self.argus.metrics.add([dict()]))
+        self.assertRaises(TypeError, lambda: self.argus.metrics.add([{}]))
         self.assertRaises(ValueError, lambda: self.argus.metrics.add([]))
 
     @mock.patch('requests.Session.post', return_value=MockResponse(json.dumps(addmetricresult_D), 200))
@@ -270,7 +270,7 @@ class TestMetrics(TestServiceBase):
 class TestAnnotations(TestServiceBase):
     def testAddInvalidAnnotations(self):
         self.assertRaises(TypeError, lambda: self.argus.annotations.add(Annotation.from_dict(annotation_D)))
-        self.assertRaises(TypeError, lambda: self.argus.annotations.add([dict()]))
+        self.assertRaises(TypeError, lambda: self.argus.annotations.add([{}]))
         self.assertRaises(ValueError, lambda: self.argus.annotations.add([]))
 
     @mock.patch('requests.Session.post', return_value=MockResponse(json.dumps(addannotationresult_D), 200))
@@ -307,7 +307,7 @@ class TestUser(TestServiceBase):
 
 class TestDashboard(TestServiceBase):
     def testAddInvalidDashboard(self):
-        self.assertRaises(TypeError, lambda: self.argus.dashboards.add(dict()))
+        self.assertRaises(TypeError, lambda: self.argus.dashboards.add({}))
         self.assertRaises(ValueError, lambda: self.argus.dashboards.add(Dashboard.from_dict(dashboard_D)))
 
     def testGetDashboardNoId(self):
@@ -418,7 +418,11 @@ class TestPermission(TestServiceBase):
 
         # Assert
         self.assertEqual(len(mockPost.call_args_list), 1)
-        self.assertIn((os.path.join(endpoint, "permission/"+all_perms_path),), tuple(mockPost.call_args))
+        self.assertIn(
+            (os.path.join(endpoint, f"permission/{all_perms_path}"),),
+            tuple(mockPost.call_args),
+        )
+
         self.assertEqual(len(res), 3)
 
         for id, obj in res:
@@ -448,7 +452,7 @@ class TestPermission(TestServiceBase):
         self.assertIn((os.path.join(endpoint, "permission/entityIds"),), tuple(mockPost.call_args))
 
     def testAddInvalidPermission(self):
-        self.assertRaises(TypeError, lambda: self.argus.permissions.add(entity_id, dict()))
+        self.assertRaises(TypeError, lambda: self.argus.permissions.add(entity_id, {}))
         self.assertRaises(ValueError, lambda: self.argus.permissions.add(entity_id, Permission.from_dict(permission_user_D)))
 
     @mock.patch('requests.Session.post', return_value=MockResponse(json.dumps(permission_user_D), 200))
@@ -469,7 +473,7 @@ class TestPermission(TestServiceBase):
 
 class TestNamespace(TestServiceBase):
     def testAddInvalidNamespace(self):
-        self.assertRaises(TypeError, lambda: self.argus.namespaces.add(dict()))
+        self.assertRaises(TypeError, lambda: self.argus.namespaces.add({}))
         self.assertRaises(ValueError, lambda: self.argus.namespaces.add(Namespace.from_dict(namespace_D)))
 
     @mock.patch('requests.Session.post', return_value=MockResponse(json.dumps(namespace_D), 200))
@@ -507,7 +511,7 @@ class TestNamespace(TestServiceBase):
 
 class TestAlert(TestServiceBase):
     def testAddInvalidAlert(self):
-        self.assertRaises(TypeError, lambda: self.argus.alerts.add(dict()))
+        self.assertRaises(TypeError, lambda: self.argus.alerts.add({}))
         self.assertRaises(ValueError, lambda: self.argus.alerts.add(Alert.from_dict(alert_D)))
 
     @mock.patch('requests.Session.post', return_value=MockResponse(json.dumps(alert_D), 200))
@@ -518,8 +522,14 @@ class TestAlert(TestServiceBase):
         self.assertTrue(isinstance(res, Alert))
         self.assertTrue(hasattr(res, "id"))
         for method in ['get', 'add', 'update', 'delete']:
-            self.assertTrue(hasattr(res.triggers, method), msg='no alert.triggers.{}()'.format(method))
-            self.assertTrue(hasattr(res.notifications, method), msg='no alert.notifications.{}()'.format(method))
+            self.assertTrue(
+                hasattr(res.triggers, method), msg=f'no alert.triggers.{method}()'
+            )
+
+            self.assertTrue(
+                hasattr(res.notifications, method),
+                msg=f'no alert.notifications.{method}()',
+            )
 
     @mock.patch('requests.Session.put', return_value=MockResponse(json.dumps(alert_D), 200))
     def testUpdateAlert(self, mockPut):
@@ -528,8 +538,14 @@ class TestAlert(TestServiceBase):
         self.assertEqual(self.argus.alerts.get(testId).to_dict(), alert_D)
         self.assertIn((os.path.join(endpoint, "alerts", str(testId)),), tuple(mockPut.call_args))
         for method in ['get', 'add', 'update', 'delete']:
-            self.assertTrue(hasattr(res.triggers, method), msg='no alert.triggers.{}()'.format(method))
-            self.assertTrue(hasattr(res.notifications, method), msg='no alert.notifications.{}()'.format(method))
+            self.assertTrue(
+                hasattr(res.triggers, method), msg=f'no alert.triggers.{method}()'
+            )
+
+            self.assertTrue(
+                hasattr(res.notifications, method),
+                msg=f'no alert.notifications.{method}()',
+            )
 
     @mock.patch('requests.Session.get', return_value=MockResponse(json.dumps([alert_D]), 200))
     def testGetAlerts(self, mockGet):
@@ -540,8 +556,15 @@ class TestAlert(TestServiceBase):
         self.assertEqual(res[0].to_dict(), alert_D)
         self.assertIn((os.path.join(endpoint, "alerts/"),), tuple(mockGet.call_args))
         for method in ['get', 'add', 'update', 'delete']:
-            self.assertTrue(hasattr(res[0].triggers, method), msg='no alert.triggers.{}()'.format(method))
-            self.assertTrue(hasattr(res[0].notifications, method), msg='no alert.notifications.{}()'.format(method))
+            self.assertTrue(
+                hasattr(res[0].triggers, method),
+                msg=f'no alert.triggers.{method}()',
+            )
+
+            self.assertTrue(
+                hasattr(res[0].notifications, method),
+                msg=f'no alert.notifications.{method}()',
+            )
 
     @mock.patch('requests.Session.get', return_value=MockResponse(json.dumps(alert_D), 200))
     def testGetAlert(self, mockGet):
@@ -550,8 +573,14 @@ class TestAlert(TestServiceBase):
         self.assertEqual(res.to_dict(), alert_D)
         self.assertIn((os.path.join(endpoint, "alerts", str(testId)),), tuple(mockGet.call_args))
         for method in ['get', 'add', 'update', 'delete']:
-            self.assertTrue(hasattr(res.triggers, method), msg='no alert.triggers.{}()'.format(method))
-            self.assertTrue(hasattr(res.notifications, method), msg='no alert.notifications.{}()'.format(method))
+            self.assertTrue(
+                hasattr(res.triggers, method), msg=f'no alert.triggers.{method}()'
+            )
+
+            self.assertTrue(
+                hasattr(res.notifications, method),
+                msg=f'no alert.notifications.{method}()',
+            )
 
     @mock.patch('requests.Session.delete', return_value=MockResponse("", 200))
     def testDeleteAlert(self, mockDelete):
@@ -578,8 +607,7 @@ class TestAlert(TestServiceBase):
 
     @mock.patch('requests.Session.get', return_value=MockResponse(json.dumps([alert_D, alert_D]), 200))
     def testGetAlertsAllInfo(self, mockGet):
-        res = self.argus.alerts.get_alerts_allinfo(userName)
-        if res:
+        if res := self.argus.alerts.get_alerts_allinfo(userName):
             for obj in res:
                 self.assertTrue(isinstance(obj, Alert))
         self.assertIn((os.path.join(endpoint, "alerts/allinfo"),), tuple(mockGet.call_args))
@@ -663,7 +691,7 @@ class TestAlertTrigger(TestServiceBase):
         self.alert = self.argus.alerts.get(testId)
 
     def testAddInvalidTrigger(self):
-        self.assertRaises(TypeError, lambda: self.alert.triggers.add(dict()))
+        self.assertRaises(TypeError, lambda: self.alert.triggers.add({}))
         self.assertRaises(ValueError, lambda: self.alert.triggers.add(Trigger.from_dict(trigger_D)))
 
     @mock.patch('requests.Session.post', return_value=MockResponse(json.dumps([trigger_D]), 200))
@@ -721,7 +749,7 @@ class TestAlertNotification(TestServiceBase):
         self.alert = self.argus.alerts.get(testId)
 
     def testAddInvalidNotification(self):
-        self.assertRaises(TypeError, lambda: self.alert.notifications.add(dict()))
+        self.assertRaises(TypeError, lambda: self.alert.notifications.add({}))
         self.assertRaises(ValueError, lambda: self.alert.notifications.add(Notification.from_dict(notification_D)))
 
     @mock.patch('requests.Session.post', return_value=MockResponse(json.dumps([notification_D]), 200))
@@ -890,7 +918,7 @@ class TestCompositeAlert(TestServiceBase):
             self.assertEqual(child_alert.alertType, 'COMPOSITE_CHILD')
             self.assertTrue(isinstance(child_alert, Alert))
             call_args = tuple(mock_add_childalert.call_args)
-            uri_path = os.path.join(endpoint, "alerts/{}/children".format(comp_alert.id))
+            uri_path = os.path.join(endpoint, f"alerts/{comp_alert.id}/children")
             self.assertIn((uri_path,), call_args)
 
         with mock.patch('requests.Session.post', return_value=MockResponse(json.dumps([childAlert_trigger_1]), 200)) as mock_trigger_post:
@@ -899,7 +927,7 @@ class TestCompositeAlert(TestServiceBase):
             trigger = child_alert.triggers.add(trigger_obj)
             self.assertTrue(isinstance(trigger, Trigger))
             call_args = tuple(mock_trigger_post.call_args)
-            uri_path = os.path.join(endpoint, "alerts/{}/triggers".format(child_alert.id))
+            uri_path = os.path.join(endpoint, f"alerts/{child_alert.id}/triggers")
             self.assertIn((uri_path,), call_args)
 
     def testAddNotification(self):
@@ -911,7 +939,7 @@ class TestCompositeAlert(TestServiceBase):
             notification = comp_alert.notifications.add(notification_obj)
             self.assertTrue(isinstance(notification, Notification))
             call_args = mock_notification.call_args
-            uri_path = os.path.join(endpoint, "alerts/{}/notifications".format(comp_alert.id))
+            uri_path = os.path.join(endpoint, f"alerts/{comp_alert.id}/notifications")
             self.assertIn((uri_path,), call_args)
 
 
@@ -930,7 +958,10 @@ class TestCompositeAlert(TestServiceBase):
         with mock.patch('requests.Session.delete', return_value=MockResponse("", 200)) as mock_delete:
             self.argus.alerts.delete_child_alert_from_composite_alert(comp_alert.id, child_alert.id)
             call_args = mock_delete.call_args
-            uri_path = os.path.join(endpoint, "alerts/{}/children/{}".format(comp_alert.id, child_alert.id))
+            uri_path = os.path.join(
+                endpoint, f"alerts/{comp_alert.id}/children/{child_alert.id}"
+            )
+
             self.assertIn((uri_path,), call_args)
 
         '''
@@ -949,7 +980,7 @@ class TestCompositeAlert(TestServiceBase):
             self.assertEqual(child_alert.alertType, 'COMPOSITE_CHILD')
             self.assertTrue(isinstance(child_alert, Alert))
             call_args = tuple(mock_add_childalert.call_args)
-            uri_path = os.path.join(endpoint, "alerts/{}/children".format(comp_alert.id))
+            uri_path = os.path.join(endpoint, f"alerts/{comp_alert.id}/children")
             self.assertIn((uri_path,), call_args)
 
         with mock.patch('requests.Session.post', return_value=MockResponse(json.dumps([childAlert_trigger_1]), 200)) as mock_trigger_post:
@@ -958,13 +989,13 @@ class TestCompositeAlert(TestServiceBase):
             trigger = child_alert.triggers.add(trigger_obj)
             self.assertTrue(isinstance(trigger, Trigger))
             call_args = tuple(mock_trigger_post.call_args)
-            uri_path = os.path.join(endpoint, "alerts/{}/triggers".format(child_alert.id))
+            uri_path = os.path.join(endpoint, f"alerts/{child_alert.id}/triggers")
             self.assertIn((uri_path,), call_args)
 
         with mock.patch('requests.Session.delete', return_value=MockResponse("", 200)) as mock_delete:
             child_alert.triggers.delete(trigger.id)
             call_args = tuple(mock_trigger_post.call_args)
-            uri_path = os.path.join(endpoint, "alerts/{}/triggers".format(child_alert.id))
+            uri_path = os.path.join(endpoint, f"alerts/{child_alert.id}/triggers")
             self.assertIn((uri_path,), call_args)
 
     def testDeleteNotification(self):
@@ -976,33 +1007,36 @@ class TestCompositeAlert(TestServiceBase):
             notification = comp_alert.notifications.add(notification_obj)
             self.assertTrue(isinstance(notification, Notification))
             call_args = mock_notification.call_args
-            uri_path = os.path.join(endpoint, "alerts/{}/notifications".format(comp_alert.id))
+            uri_path = os.path.join(endpoint, f"alerts/{comp_alert.id}/notifications")
             self.assertIn((uri_path,), call_args)
 
         with mock.patch('requests.Session.delete', return_value=MockResponse("", 200)) as mock_delete:
             comp_alert.notifications.delete(notification.id)
             call_args = tuple(mock_delete.call_args)
-            uri_path = os.path.join(endpoint, "alerts/{}/notifications/{}".format(comp_alert.id, notification.id))
+            uri_path = os.path.join(
+                endpoint, f"alerts/{comp_alert.id}/notifications/{notification.id}"
+            )
+
             self.assertIn((uri_path,), call_args)
 
     def testGetCompAlertChildrenInfo(self):
         with mock.patch('requests.Session.get', return_value=MockResponse(json.dumps([childAlert_1, childAlert_2]), 200)) as mock_get:
-            res = self.argus.alerts.get_composite_alert_children_info(compAlertID)
-            if res:
+            if res := self.argus.alerts.get_composite_alert_children_info(
+                compAlertID
+            ):
                 for obj in res:
                     self.assertTrue(isinstance(obj, Alert))
             call_args = tuple(mock_get.call_args)
-            uri_path = os.path.join(endpoint, "alerts/{}/children/info".format(compAlertID))
+            uri_path = os.path.join(endpoint, f"alerts/{compAlertID}/children/info")
             self.assertIn((uri_path,), call_args)
 
     def testGetCompAlertChildren(self):
         with mock.patch('requests.Session.get', return_value=MockResponse(json.dumps([childAlert_1, childAlert_2]), 200)) as mock_get:
-            res = self.argus.alerts.get_composite_alert_children(compAlertID)
-            if res:
+            if res := self.argus.alerts.get_composite_alert_children(compAlertID):
                 for obj in res:
                     self.assertTrue(isinstance(obj, Alert))
             call_args = tuple(mock_get.call_args)
-            uri_path = os.path.join(endpoint, "alerts/{}/children".format(compAlertID))
+            uri_path = os.path.join(endpoint, f"alerts/{compAlertID}/children")
             self.assertIn((uri_path,), call_args)
 
     def testUpdateCompAlert(self):
@@ -1016,7 +1050,7 @@ class TestCompositeAlert(TestServiceBase):
             alert_dict = compalert_D
             self.assertEqual(alert_obj_dict, alert_dict)
             call_args = mock_update.call_args
-            uri_path = os.path.join(endpoint, "alerts/{}".format(compAlertID))
+            uri_path = os.path.join(endpoint, f"alerts/{compAlertID}")
             self.assertIn((uri_path,), call_args)
 
 class TestDerivative(TestServiceBase):
